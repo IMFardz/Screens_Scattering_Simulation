@@ -22,8 +22,8 @@ from screens.fields import phasor
 
 
 dp = 0.372*u.kpc
-d2 = 0.120*u.kpc
-d1 = 0.080*u.kpc
+d2 = 0.110*u.kpc
+d1 = 0.090*u.kpc
 
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
