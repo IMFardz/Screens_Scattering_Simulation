@@ -137,9 +137,10 @@ if __name__ == '__main__':
     dw = ph * brightness[:, np.newaxis, np.newaxis]
     # Calculate and show dynamic spectrum.
     ds = np.abs(dw.sum(0))**2
+    #ds = dw.sum(0)
     print(ds[:10,0])
     ax_ds = plt.subplot(233)
-    ax_ds.imshow(ds.T, cmap='Greys',
+    ax_ds.imshow((np.abs(dw.sum(0))**2).T, cmap='Greys',
                  extent=axis_extent(t) + axis_extent(f),
                  origin='lower', interpolation='none', aspect='auto')
     ax_ds.set_xlabel(t.unit.to_string('latex'))
