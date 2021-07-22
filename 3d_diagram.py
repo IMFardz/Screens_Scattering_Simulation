@@ -27,6 +27,13 @@ dp = 0.372*u.kpc
 d2 = 0.110*u.kpc
 d1 = 0.090*u.kpc
 
+# dp = dp.to_value(u.pc) * u.pc
+# d2 = d2.to_value(u.pc) * u.pc
+# d1 = d1.to_value(u.pc) * u.pc
+# print(dp)
+# print(d2)
+# print(d1)
+
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
                 vel=CartesianRepresentation(655.848, 0., 0., unit=u.km/u.s))

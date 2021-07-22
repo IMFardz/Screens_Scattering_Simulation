@@ -1,13 +1,12 @@
-# Licensed under the GPLv3 - see LICENSE
-"""Simulate scintillation through two screens.
-The setup is somewhat similar to what is seen in the Brisken data,
-with one screen that has a lot of images, and another that has only
-one.
-The geometry of the paths is shown, as well as inferred dynamic and
-secondary spectra.
-.. warning:: Usage quite likely to change.
 """
+Simulate screens observed by James and Hengrui in the case that the screens do
+not interact with each other.
 
+Simulation is of Screns C and D in James's draft.
+
+s1 - SCREEN D
+s2 - SCREEN C
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as u
@@ -19,9 +18,9 @@ from screens.screen import Source, Screen1D, Telescope
 from screens.fields import phasor
 
 
-dp = 0.75*u.kpc
-d2 = 0.50*u.kpc
-d1 = 0.25*u.kpc
+dp = 0.37*u.kpc
+d2 = 0.0518*u.kpc
+d1 = 0.0333*u.kpc
 
 # This breaks the code, should maybe let Marten know
 # dp = dp.to_value(u.pc) * u.pc
@@ -30,17 +29,16 @@ d1 = 0.25*u.kpc
 
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
-                vel=CartesianRepresentation(300., 0., 0., unit=u.km/u.s))
+                vel=CartesianRepresentation(655.848, 0., 0., unit=u.km/u.s))
 telescope = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU))
 
-s1 = Screen1D(CylindricalRepresentation(1., -40*u.deg, 0.).to_cartesian(),
-              [-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031,
-               0., 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409]*u.AU,
-              magnification=np.array(
-                  [0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,
-                   1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
-s2 = Screen1D(CylindricalRepresentation(1., 70*u.deg, 0.).to_cartesian(),
-              [0.85]*u.AU, magnification=0.05)
+s1 = Screen1D(CylindricalRepresentation(1., (10.3 - 11.4)*u.deg, 0.).to_cartesian(),
+              1*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
+              magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
+
+s2 = Screen1D(CylindricalRepresentation(1., (-18.9 - 11.4)*u.deg, 0.).to_cartesian(),
+              1.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031,0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
+              magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j, 1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 
 
 def axis_extent(x):
@@ -127,28 +125,24 @@ if __name__ == '__main__':
         ax.scatter(_x[1], _y[1], _z[1], marker='o',
                    color='red')
     obs2 = telescope.observe(
-        s1.observe(
-            s2.observe(pulsar, distance=dp-d2),
-            distance=d2-d1),
-        distance=d1)
+            s2.observe(pulsar, distance=dp-d2), distance=d2)
     path_shape = obs2.tau.shape  # Also trigger calculation of pos, vel.
     tpos = obs2.pos
     scat1 = obs2.source.pos
-    scat2 = obs2.source.source.pos
-    ppos = obs2.source.source.source.pos
+    ppos = obs2.source.source.pos
     x = np.vstack(
         [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     y = np.vstack(
         [np.broadcast_to(getattr(pos, 'y').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     z = np.vstack(
         [np.broadcast_to(d, path_shape).ravel()
-         for d in (0., d1.value, d2.value, dp.value)])
+         for d in (0., d2.value, dp.value)])
     for _x, _y, _z in zip(x.T, y.T, z.T):
         ax.plot(_x, _y, _z, color='black', linestyle=':')
-        ax.scatter(_x[1:3], _y[1:3], _z[1:3], marker='o',
-                   color=['red', 'orange'])
+        ax.scatter(_x[1], _y[1], _z[1], marker='o',
+                   color=['orange'])
 
     # Create dynamic spectrum using delay for each path.
     tau0 = np.hstack([obs1.tau.ravel(), obs2.tau.ravel()])
@@ -163,9 +157,10 @@ if __name__ == '__main__':
     ph = phasor(f, tau)
     dw = ph * brightness[:, np.newaxis, np.newaxis]
     # Calculate and show dynamic spectrum.
-    ds = np.abs(dw.sum(0))**2
+    #ds = np.abs(dw.sum(0))**2
+    ds = dw.sum(0)
     ax_ds = plt.subplot(233)
-    ax_ds.imshow(ds.T, cmap='Greys',
+    ax_ds.imshow((np.abs(dw.sum(0))**2).T, cmap='Greys',
                  extent=axis_extent(t) + axis_extent(f),
                  origin='lower', interpolation='none', aspect='auto')
     ax_ds.set_xlabel(t.unit.to_string('latex'))
