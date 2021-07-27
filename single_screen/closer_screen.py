@@ -25,6 +25,10 @@ dp = 0.75*u.kpc
 d1 = 0.25*u.kpc
 
 
+# dp = 750*u.kpc
+# d1 = 250*u.kpc
+
+
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
                 vel=CartesianRepresentation(300., 0., 0., unit=u.km/u.s))
 telescope = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU))

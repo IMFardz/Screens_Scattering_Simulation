@@ -1,15 +1,7 @@
-# Licensed under the GPLv3 - see LICENSE
-"""Simulate scintillation through two screens.
-The setup is somewhat similar to what is seen in the Brisken data,
-with one screen that has a lot of images, and another that has only
-one.
-The geometry of the paths is shown, as well as inferred dynamic and
-secondary spectra.
-.. warning:: Usage quite likely to change.
-
-In this altered version I change it so that ALL Light that reaches earth is doubly scattered by both screens
 """
-
+Description of model: Two Parallel Screens, 1 images on first,
+two images (not symmetrc) on second, only Earth observatories are moving
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as u
@@ -23,23 +15,30 @@ from scipy.optimize import curve_fit
 
 
 dp = 0.372*u.kpc
-d2 = 0.110*u.kpc
-d1 = 0.090*u.kpc
+d2 = dp/2
 
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
-                vel=CartesianRepresentation(655.848, 0., 0., unit=u.km/u.s))
-arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU))
-jodrell = Telescope(CylindricalRepresentation(5552, (-42.33 - 11.4)*u.deg, 0.).to_cartesian() * u.km)
+                vel=CartesianRepresentation(600, 0., 0., unit=u.km/u.s))
 
-s1 = Screen1D(CylindricalRepresentation(1., (63.6 - 11.4)*u.deg, 0.).to_cartesian(),
-     0.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
-     v = 0 * np.ones(14) * u.km/u.s,
-     magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 
-s2 = Screen1D(CylindricalRepresentation(1., (38 - 11.4)*u.deg, 0.).to_cartesian(),
-              0.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031,0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
-              magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j, 1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
+# ON JANUARY 27, 2019 the observatory velocities are given by:
+# ARECIBO: <[ 18.44724718, -13.00367214] km / s (22.56981209 km / s, -125.18043988 deg)
+# JODRELL: <[ 18.75964149, -13.07485774] km / s (22.8664832  km / s, -124.87523808 deg)
+# VLA    : <[ 18.60568632, -12.93659457] km / s (22.66113507 km / s, -124.81101557 deg)
+
+arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU),
+        vel=CylindricalRepresentation(22.56981209, (-125.18  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
+
+jodrell = Telescope(CylindricalRepresentation(5552,  (-42.33 - 11.4)*u.deg, 0.).to_cartesian() * u.km,
+        vel=CylindricalRepresentation(22.8664832,  (-124.88  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
+
+vla     = Telescope(CylindricalRepresentation(3937,  (57.364 - 11.4)*u.deg, 0.).to_cartesian() * u.km,
+        vel=CylindricalRepresentation(22.8664832,  (-124.88  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
+
+s2 = Screen1D(CylindricalRepresentation(1., (63.6 - 11.4)*u.deg, 0.).to_cartesian(),
+              0.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
+              magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 
 
 def axis_extent(x):
@@ -98,32 +97,25 @@ if __name__ == '__main__':
     ax.set_yticks([-2, -1, 0, 1., 2])
     ax.set_zticks([0, 0.25, 0.5, 0.75])
     plot_screen(ax, arecibo, 0*u.kpc, color='blue')
-    plot_screen(ax, s1, d1, color='red')
     plot_screen(ax, s2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
-    # Connect origins
-    # ax.plot(np.zeros(4), np.zeros(4),
-    #         [0., d1.value, d2.value, dp.value], color='black')
 
 
     # ARECIBO
-    obs2 = arecibo.observe(
-        s1.observe(s2.observe(pulsar, distance=dp-d2),
-            distance=d2-d1), distance=d1)
+    obs2 = arecibo.observe(s2.observe(pulsar, distance=dp-d2), distance=d2)
     path_shape = obs2.tau.shape  # Also trigger calculation of pos, vel.
     tpos = obs2.pos
     scat1 = obs2.source.pos
-    scat2 = obs2.source.source.pos
-    ppos = obs2.source.source.source.pos
+    ppos = obs2.source.source.pos
     x = np.vstack(
         [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     y = np.vstack(
         [np.broadcast_to(getattr(pos, 'y').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     z = np.vstack(
         [np.broadcast_to(d, path_shape).ravel()
-         for d in (0., d1.value, d2.value, dp.value)])
+         for d in (0., d2.value, dp.value)])
     for _x, _y, _z in zip(x.T, y.T, z.T):
         ax.plot(_x, _y, _z, color='black', linestyle=':')
         ax.scatter(_x[1:3], _y[1:3], _z[1:3], marker='o',
@@ -165,8 +157,8 @@ if __name__ == '__main__':
     ax_ss.set_xlabel(fd.unit.to_string('latex'))
     ax_ss.set_ylabel(tau.unit.to_string('latex'))
 
-    #plt.show()
-    plt.close()
+    plt.show()
+    #plt.close()
 
     # JODRELL BANK
     fig = plt.figure()
@@ -180,26 +172,22 @@ if __name__ == '__main__':
     ax.set_yticks([-2, -1, 0, 1., 2])
     ax.set_zticks([0, 0.25, 0.5, 0.75])
     plot_screen(ax, arecibo, 0*u.kpc, color='blue')
-    plot_screen(ax, s1, d1, color='red')
     plot_screen(ax, s2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
-    obs3 = jodrell.observe(
-        s1.observe(s2.observe(pulsar, distance=dp-d2),
-            distance=d2-d1), distance=d1)
+    obs3 = jodrell.observe(s2.observe(pulsar, distance=dp-d2), distance=d2)
     path_shape = obs3.tau.shape  # Also trigger calculation of pos, vel.
     tpos = obs3.pos
     scat1 = obs3.source.pos
-    scat2 = obs3.source.source.pos
-    ppos = obs3.source.source.source.pos
+    ppos = obs3.source.source.pos
     x = np.vstack(
         [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     y = np.vstack(
         [np.broadcast_to(getattr(pos, 'y').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, scat2, ppos)])
+         for pos in (tpos, scat1, ppos)])
     z = np.vstack(
         [np.broadcast_to(d, path_shape).ravel()
-         for d in (0., d1.value, d2.value, dp.value)])
+         for d in (0., d2.value, dp.value)])
     for _x, _y, _z in zip(x.T, y.T, z.T):
         ax.plot(_x, _y, _z, color='black', linestyle=':')
         ax.scatter(_x[1:3], _y[1:3], _z[1:3], marker='o',
@@ -266,17 +254,17 @@ if __name__ == '__main__':
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
-    plt.ylim(0, 15)
+    plt.ylim(0, 10)
     plt.colorbar()
 
     fig.add_subplot(222)
     plt.imshow(np.angle(cross), aspect='auto', interpolation='none', origin='lower', cmap="RdBu",
                extent=[fd[0].value, fd[-1].value, tau[0].value, tau[-1].value],
-               vmin=-np.pi/2, vmax=np.pi/2)
+               vmin=-np.pi/16, vmax=np.pi/16)
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
-    plt.ylim(0, 15)
+    plt.ylim(0, 10)
     plt.colorbar()
 
 
@@ -287,7 +275,7 @@ if __name__ == '__main__':
     def f(x, a):
         return a*x
 
-    s = curve_fit(f, fd[120:190], delay_average[120:190])
+    s = curve_fit(f, fd[145:155], delay_average[145:155])
     slope = s[0][0]
     delay = slope * 1000 / (2 * np.pi)
     print(fd[:10])
@@ -301,6 +289,6 @@ if __name__ == '__main__':
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Radians")
     plt.legend()
-    plt.ylim(-1, 1)
+    plt.ylim(-0.25, 0.25)
     plt.tight_layout()
     plt.show()

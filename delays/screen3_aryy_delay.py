@@ -34,7 +34,7 @@ arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU))
 vla = Telescope(CylindricalRepresentation(3937, (57.36 - 11.4)*u.deg, 0.).to_cartesian() * u.km)
 
 s1 = Screen1D(CylindricalRepresentation(1., (63.6 - 11.4)*u.deg, 0.).to_cartesian(),
-     np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
+     0.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
      v = 0 * np.ones(14) * u.km/u.s,
      magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 
@@ -136,6 +136,7 @@ if __name__ == '__main__':
     # Calculate and show dynamic spectrum.
     #ds = np.abs(dw.sum(0))**2
     ar_ds = (np.abs(dw.sum(0))**2).T
+    #ar_ds = (dw.sum(0)).T
     ds = dw.sum(0)
     ax_ds = plt.subplot(233)
     ax_ds.imshow((np.abs(dw.sum(0))**2).T, cmap='Greys',
@@ -217,6 +218,7 @@ if __name__ == '__main__':
     # Calculate and show dynamic spectrum.
     #ds = np.abs(dw.sum(0))**2
     jb_ds = (np.abs(dw.sum(0))**2).T
+    #jb_ds = (dw.sum(0)).T
     ds = dw.sum(0)
     ax_ds = plt.subplot(233)
     ax_ds.imshow((np.abs(dw.sum(0))**2).T, cmap='Greys',
@@ -242,16 +244,10 @@ if __name__ == '__main__':
     #plt.show()
     plt.close()
 
-
-
-    # Make cross spectrum
-    #print(ar_ds[:10,0])
-    #print(jb_ds[:10,0])
-
     # # Apply window functions
-    # hamm_win = np.outer(np.hamming(len(tau)), np.hamming(len(fd)))
-    # ar_ds *= hamm_win
-    # jb_ds *= hamm_win
+    hamm_win = np.outer(np.hamming(len(tau)), np.hamming(len(fd)))
+    ar_ds *= hamm_win
+    jb_ds *= hamm_win
 
 
     ar_ss = np.fft.fftshift(np.fft.fft2(ar_ds))
@@ -265,8 +261,8 @@ if __name__ == '__main__':
                extent=[fd[0].value, fd[-1].value, tau[0].value, tau[-1].value])
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
-    plt.xlim(-20, 20)
-    plt.ylim(0, 20)
+    plt.xlim(-10, 10)
+    plt.ylim(0, 5)
     plt.colorbar()
 
     fig.add_subplot(222)
@@ -275,8 +271,8 @@ if __name__ == '__main__':
                vmin=-np.pi/2, vmax=np.pi/2)
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
-    plt.xlim(-20, 20)
-    plt.ylim(0, 20)
+    plt.xlim(-10, 10)
+    plt.ylim(0, 5)
     plt.colorbar()
 
 
