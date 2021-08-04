@@ -19,91 +19,9 @@ import astropy.constants as ac
 # # JODRELL: <[ 18.75964149, -13.07485774] km / s (22.8664832  km / s, -124.87523808 deg)
 # # VLA    : <[ 18.60568632, -12.93659457] km / s (22.66113507 km / s, -124.81101557 deg)
 
-dp = 0.1*u.kpc
-d2 = 0.05*u.kpc
-d1 = 0.025*u.kpc
 
-ap = 0 * u.deg
-a2 = 80 * u.deg
-a1 = 0 * u.deg
-
-pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
-                vel=CartesianRepresentation(300, 0., 0., unit=u.km/u.s))
-
-arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.km),
-        vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
-
-jodrell = Telescope(CylindricalRepresentation(5000, a1, 0.).to_cartesian() * u.km,
-        vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
-
-vla = Telescope(CylindricalRepresentation(5000, a1 + 90*u.deg, 0.).to_cartesian() * u.km)
-
-s1 = Screen1D(CylindricalRepresentation(1., a1, 0.).to_cartesian(),
-     np.array([1e-9])*u.AU,
-     v = 0 * u.km/u.s,
-     magnification=1)
-
-s2 = Screen1D(CylindricalRepresentation(1., a2, 0.).to_cartesian(),
-     0.5*np.array([-0.34, -0.3, -0.25, -0.15, -0.06, -0.03, -0.02, 0.0001, 0.0201, 0.03, 0.05, 0.1, 0.15, 0.2])*u.AU,
-     v=0*u.km/u.s,
-     magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
-
-
-# Compute the curvature one would observe is just single screen at each location
-s_1p = 1 - (d1/dp).to(u.dimensionless_unscaled)
-s_2p = 1 - (d2/dp).to(u.dimensionless_unscaled)
-s_3 = 1 - ((d2-d1)/(dp-d1)).to(u.dimensionless_unscaled)
-s_12 = 1 - (d1/d2).to(u.dimensionless_unscaled)
-deff1 = dp * (1-s_1p)/s_1p
-deff2 = dp * (1-s_2p)/s_2p
-deff3 = (dp-d1) * (1-s_3)/s_3
-veff1 = np.dot(pulsar.vel.get_xyz() * (1 - s_1p)/s_1p + arecibo.vel.get_xyz()\
-- (s1.v * s1.normal.get_xyz())/s_1p, s1.normal.get_xyz())
-
-veff2 = np.dot(pulsar.vel.get_xyz() * (1 - s_2p)/s_2p + arecibo.vel.get_xyz()\
-- (s2.v * s2.normal.get_xyz())/s_2p, s2.normal.get_xyz())
-
-veff3 = np.dot(pulsar.vel.get_xyz() * (1 - s_3)/s_3 + \
-        (s1.v * s1.normal.get_xyz()) - \
-        s2.v*s2.normal.get_xyz()/s_3, s2.normal.get_xyz())
-lambd = ac.c / (305 * u.MHz)
-eta3 = ((lambd**2/(2*ac.c)) * deff3/(veff3**2)).to(u.s**3)
-print("eta3 = {:.5f}".format(eta3))
-
-psr_vel  = np.sqrt(np.dot(pulsar.vel.get_xyz(), pulsar.vel.get_xyz()))
-psr_vel2 = np.sin(ap - a2) * psr_vel
-psr_vel3 = np.sin(a2 - a1) * psr_vel2 * s1.normal.get_xyz()
-# psr_vel2 = np.cos(ap - a2) * psr_vel
-# psr_vel3 = np.cos(a2 - a1) * psr_vel2 * s1.normal.get_xyz()
-
-s2_v = np.sqrt(1 - np.dot(s2.normal.get_xyz(), s1.normal.get_xyz())**2) * s2.v * s1.normal.get_xyz()
-
-#veff= np.dot(psr_vel3 * (1 - s_3)/s_3 + arecibo.vel.get_xyz() + s1.v * s1.normal.get_xyz() - s2_v, s1.normal.get_xyz())
-#veff=veff3 / (1-np.cos(a2 - a1))
-
-# These are only correct in the case of parallel screens
-deff=deff3
-veff=veff3
-eta = ((lambd**2/(2*ac.c)) * deff/(veff**2)).to(u.s**3)
-print("veff = {:.5f}".format(veff))
-print("eta = {:.5f}".format(eta))
-
-# Compute offset in second parabola
-offset_x = -(veff1/(lambd)*(s1.p/d1)).to(u.mHz)[0]
-offset_y = ((deff1/(2*ac.c))*(s1.p/d1)**2).to(u.us)[0]
-print("FD Offset: ", offset_x)
-print("Tau Offset: ", offset_y)
-
-# Predict the delay
-jodrell_b = np.linalg.norm( jodrell.pos.get_xyz())
-jodrell_u = jodrell.pos.get_xyz() / jodrell_b
-vla_b = np.linalg.norm( vla.pos.get_xyz())
-vla_u = vla.pos.get_xyz() / vla_b
-delay_jb = -((jodrell_b / veff) * np.sqrt(1 - np.dot(jodrell_u, s1.normal.get_xyz())**2 )**2).to(u.s)
-delay_vla = -((vla_b / veff) * np.dot(vla_u, s1.normal.get_xyz())**2).to(u.s)
-print("JB Delay = {:.5f}".format(delay_jb))
-print("VLA Delay = {:.5f}".format(delay_vla))
-
+# ========================================================================
+# HELPER FUNCTIONS
 
 def axis_extent(x):
     x = x.ravel().value
@@ -144,8 +62,98 @@ def plot_screen(ax, s, d, color='black', **kwargs):
                   dp.x.to_value(u.AU), dp.y.to_value(u.AU), np.zeros(1),
                   arrow_length_ratio=0.05)
 
+# ======================================================================
+# The LOOP ITERATION
+dp = 0.1*u.kpc
+d2 = 0.05*u.kpc
+d1 = 0.025*u.kpc
 
-if __name__ == '__main__':
+a_list = np.arange(0, 180, 15) * u.deg
+print(a_list)
+
+for a in a_list:
+    ap = 0 * u.deg
+    a2 = a + 90*u.deg
+    a1 = a
+
+    pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
+                    vel=CartesianRepresentation(300, 0., 0., unit=u.km/u.s))
+
+    arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.km),
+            vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
+
+    jodrell = Telescope(CylindricalRepresentation(5000, a1, 0.).to_cartesian() * u.km,
+            vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
+
+    vla = Telescope(CylindricalRepresentation(5000, a1 + 90*u.deg, 0.).to_cartesian() * u.km)
+
+    s2 = Screen1D(CylindricalRepresentation(1., a1, 0.).to_cartesian(),
+         np.array([1e-9])*u.AU,
+         v = 0 * u.km/u.s,
+         magnification=1)
+
+    s1 = Screen1D(CylindricalRepresentation(1., a2, 0.).to_cartesian(),
+         0.5*np.array([-0.34, -0.3, -0.25, -0.15, -0.06, -0.03, -0.02, 0.0001, 0.0201, 0.03, 0.05, 0.1, 0.15, 0.2])*u.AU,
+         v=0*u.km/u.s,
+         magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
+
+
+    # Compute the curvature one would observe is just single screen at each location
+    s_1p = 1 - (d1/dp).to(u.dimensionless_unscaled)
+    s_2p = 1 - (d2/dp).to(u.dimensionless_unscaled)
+    s_3 = 1 - ((d2-d1)/(dp-d1)).to(u.dimensionless_unscaled)
+    s_12 = 1 - (d1/d2).to(u.dimensionless_unscaled)
+    deff1 = dp * (1-s_1p)/s_1p
+    deff2 = dp * (1-s_2p)/s_2p
+    deff3 = (dp-d1) * (1-s_3)/s_3
+    veff1 = np.dot(pulsar.vel.get_xyz() * (1 - s_1p)/s_1p + arecibo.vel.get_xyz()\
+    - (s1.v * s1.normal.get_xyz())/s_1p, s1.normal.get_xyz())
+
+    veff2 = np.dot(pulsar.vel.get_xyz() * (1 - s_2p)/s_2p + arecibo.vel.get_xyz()\
+    - (s2.v * s2.normal.get_xyz())/s_2p, s2.normal.get_xyz())
+
+    veff3 = np.dot(pulsar.vel.get_xyz() * (1 - s_3)/s_3 + \
+            (s1.v * s1.normal.get_xyz()) - \
+            s2.v*s2.normal.get_xyz()/s_3, s2.normal.get_xyz())
+    lambd = ac.c / (305 * u.MHz)
+    eta3 = ((lambd**2/(2*ac.c)) * deff3/(veff3**2)).to(u.s**3)
+    #print("eta3 = {:.5f}".format(eta3))
+
+    psr_vel  = np.sqrt(np.dot(pulsar.vel.get_xyz(), pulsar.vel.get_xyz()))
+    psr_vel2 = np.sin(ap - a2) * psr_vel
+    psr_vel3 = np.sin(a2 - a1) * psr_vel2 * s1.normal.get_xyz()
+    # psr_vel2 = np.cos(ap - a2) * psr_vel
+    # psr_vel3 = np.cos(a2 - a1) * psr_vel2 * s1.normal.get_xyz()
+
+    s2_v = np.sqrt(1 - np.dot(s2.normal.get_xyz(), s1.normal.get_xyz())**2) * s2.v * s1.normal.get_xyz()
+
+    #veff= np.dot(psr_vel3 * (1 - s_3)/s_3 + arecibo.vel.get_xyz() + s1.v * s1.normal.get_xyz() - s2_v, s1.normal.get_xyz())
+    #veff=veff3 / (1-np.cos(a2 - a1))
+
+    # These are only correct in the case of parallel screens
+    deff=deff3
+    veff=veff3
+    eta = ((lambd**2/(2*ac.c)) * deff/(veff**2)).to(u.s**3)
+    #print("veff = {:.5f}".format(veff))
+    #print("eta = {:.5f}".format(eta))
+
+    # Compute offset in second parabola
+    offset_x = -(veff1/(lambd)*(s1.p/d1)).to(u.mHz)[0]
+    offset_y = ((deff1/(2*ac.c))*(s1.p/d1)**2).to(u.us)[0]
+    #print("FD Offset: ", offset_x)
+    #print("Tau Offset: ", offset_y)
+
+    # Predict the delay
+    jodrell_b = np.linalg.norm( jodrell.pos.get_xyz())
+    jodrell_u = jodrell.pos.get_xyz() / jodrell_b
+    vla_b = np.linalg.norm( vla.pos.get_xyz())
+    vla_u = vla.pos.get_xyz() / vla_b
+    delay_jb = -((jodrell_b / veff) * np.sqrt(1 - np.dot(jodrell_u, s1.normal.get_xyz())**2 )**2).to(u.s)
+    delay_vla = -((vla_b / veff) * np.dot(vla_u, s1.normal.get_xyz())**2).to(u.s)
+    #print("JB Delay = {:.5f}".format(delay_jb))
+    #print("VLA Delay = {:.5f}".format(delay_vla))
+
+
     fig = plt.figure()
     fig.tight_layout()
     ax = plt.subplot(1, 3, (1, 2), projection='3d')
@@ -217,7 +225,9 @@ if __name__ == '__main__':
     ax_ss.set_xlabel(fd.unit.to_string('latex'))
     ax_ss.set_ylabel(tau.unit.to_string('latex'))
 
-    plt.show()
+    #plt.show()
+    #plt.savefig("images/model6/a2=0/a1={0}_3d_diagram.png".format(int(a1.value)))
+    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_3d_diagram.png".format(int(a1.value), int(a2.value)))
     plt.close()
 
     # JODRELL BANK
@@ -384,16 +394,17 @@ if __name__ == '__main__':
     plt.imshow(np.log10(np.abs(ss)**2), vmin=-7, vmax=1, cmap='Greys',
                  extent=axis_extent(fd) + axis_extent(tau),
                  origin='lower', interpolation='none', aspect='auto')
-    plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
+    #plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
     plt.xlim(-10, 10)
     plt.ylim(0, 15)
+    plt.title("alpha_s1 = {0}, alpha_s2 = {1}".format(a1, a2))
     plt.xlabel(fd.unit.to_string('latex'))
     plt.ylabel(tau.unit.to_string('latex'))
 
     fig.add_subplot(232)
     plt.imshow(np.log10(np.abs(cross_arjb)), aspect='auto', interpolation='none', origin='lower',
                extent=[fd[0].value, fd[-1].value, tau[0].value, tau[-1].value])
-    plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
+    #plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
@@ -421,7 +432,10 @@ if __name__ == '__main__':
     plt.legend()
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
-    plt.show()
+    #plt.show()
+    #plt.savefig("images/model6/a2=0/a1={0}_arjb.png".format(int(a1.value)))
+    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_arjb.png".format(int(a1.value), int(a2.value)))
+    plt.close()
 
 
     # ===================================================================
@@ -431,16 +445,17 @@ if __name__ == '__main__':
     plt.imshow(np.log10(np.abs(ss)**2), vmin=-7, vmax=1, cmap='Greys',
                  extent=axis_extent(fd) + axis_extent(tau),
                  origin='lower', interpolation='none', aspect='auto')
-    plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
+    #plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
     plt.xlim(-10, 10)
     plt.ylim(0, 15)
+    plt.title("alpha_s1 = {0}, alpha_s2 = {1}".format(a1, a2))
     plt.xlabel(fd.unit.to_string('latex'))
     plt.ylabel(tau.unit.to_string('latex'))
 
     fig.add_subplot(232)
     plt.imshow(np.log10(np.abs(cross_arvla)), aspect='auto', interpolation='none', origin='lower',
                extent=[fd[0].value, fd[-1].value, tau[0].value, tau[-1].value])
-    plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
+    #plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta.value + offset_y.value, color='blue')
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
@@ -468,4 +483,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
-    plt.show()
+    #plt.show()
+    #plt.savefig("images/model6/a2=0/a1={0}_aryy.png".format(int(a1.value)))
+    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_aryy.png".format(int(a1.value), int(a2.value)))
+    plt.close()
