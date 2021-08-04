@@ -73,7 +73,7 @@ print(a_list)
 
 for a in a_list:
     ap = 0 * u.deg
-    a2 = a + 90*u.deg
+    a2 = 0*u.deg
     a1 = a
 
     pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
@@ -87,12 +87,12 @@ for a in a_list:
 
     vla = Telescope(CylindricalRepresentation(5000, a1 + 90*u.deg, 0.).to_cartesian() * u.km)
 
-    s2 = Screen1D(CylindricalRepresentation(1., a1, 0.).to_cartesian(),
+    s2 = Screen1D(CylindricalRepresentation(1., a2, 0.).to_cartesian(),
          np.array([1e-9])*u.AU,
          v = 0 * u.km/u.s,
          magnification=1)
 
-    s1 = Screen1D(CylindricalRepresentation(1., a2, 0.).to_cartesian(),
+    s1 = Screen1D(CylindricalRepresentation(1., a1, 0.).to_cartesian(),
          0.5*np.array([-0.34, -0.3, -0.25, -0.15, -0.06, -0.03, -0.02, 0.0001, 0.0201, 0.03, 0.05, 0.1, 0.15, 0.2])*u.AU,
          v=0*u.km/u.s,
          magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
@@ -226,8 +226,8 @@ for a in a_list:
     ax_ss.set_ylabel(tau.unit.to_string('latex'))
 
     #plt.show()
-    #plt.savefig("images/model6/a2=0/a1={0}_3d_diagram.png".format(int(a1.value)))
-    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_3d_diagram.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model6/a2=0/a1={0:03}_3d_diagram.png".format(int(a1.value)))
+    #plt.savefig("images/model6/perp_screens/a1={0:03}_a2={1:03}_3d_diagram.png".format(int(a1.value), int(a2.value)))
     plt.close()
 
     # JODRELL BANK
@@ -433,8 +433,8 @@ for a in a_list:
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
     #plt.show()
-    #plt.savefig("images/model6/a2=0/a1={0}_arjb.png".format(int(a1.value)))
-    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_arjb.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model6/a2=0/a1={0:03}_arjb.png".format(int(a1.value)))
+    #plt.savefig("images/model6/perp_screens/a1={0:03}_a2={1:03}_arjb.png".format(int(a1.value), int(a2.value)))
     plt.close()
 
 
@@ -484,6 +484,6 @@ for a in a_list:
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
     #plt.show()
-    #plt.savefig("images/model6/a2=0/a1={0}_aryy.png".format(int(a1.value)))
-    plt.savefig("images/model6/perp_screens/a1={0}_a2={1}_aryy.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model6/a2=0/a1={0:03}_aryy.png".format(int(a1.value)))
+    #plt.savefig("images/model6/perp_screens/a1={0:03}_a2={1:03}_aryy.png".format(int(a1.value), int(a2.value)))
     plt.close()

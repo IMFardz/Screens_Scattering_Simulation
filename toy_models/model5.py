@@ -73,7 +73,7 @@ print(a_list)
 
 for a in a_list:
     ap = 0 * u.deg
-    a2 = a + 90*u.deg
+    a2 = 0 * u.deg
     a1 = a
 
     pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
@@ -226,8 +226,8 @@ for a in a_list:
     ax_ss.set_ylabel(tau.unit.to_string('latex'))
 
     #plt.show()
-    #plt.savefig("images/model5/a2=0/a1={0}_3d_diagram.png".format(int(a.value)))
-    plt.savefig("images/model5/perp_screens/a1={0}_a2={1}_3d_diagram.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model5/a2=0/a1={0:03}_3d_diagram.png".format(int(a1.value)))
+    #plt.savefig("images/model5/perp_screens/a1={0:03}_a2={1:03}_3d_diagram.png".format(int(a1.value), int(a2.value)))
     plt.close()
 
     # JODRELL BANK
@@ -433,8 +433,8 @@ for a in a_list:
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
     #plt.show()
-    #plt.savefig("images/model5/a2=0/a1={0}_arjb.png".format(int(a.value)))
-    plt.savefig("images/model5/perp_screens/a1={0}_a2={1}_arjb.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model5/a2=0/a1={0:03}_arjb.png".format(int(a1.value)))
+    #plt.savefig("images/model5/perp_screens/a1={0:03}_a2={1:03}_arjb.png".format(int(a1.value), int(a2.value)))
     plt.close()
 
 
@@ -484,6 +484,6 @@ for a in a_list:
     plt.ylim(-np.pi, np.pi)
     plt.tight_layout()
     #plt.show()
-    #plt.savefig("images/model5/a2=0/a1={0}_aryy.png".format(int(a.value)))
-    plt.savefig("images/model5/perp_screens/a1={0}_a2={1}_aryy.png".format(int(a1.value), int(a2.value)))
+    plt.savefig("images/model5/a2=0/a1={0:03}_aryy.png".format(int(a1.value)))
+    #plt.savefig("images/model5/perp_screens/a1={0:03}_a2={1:03}_aryy.png".format(int(a1.value), int(a2.value)))
     plt.close()
