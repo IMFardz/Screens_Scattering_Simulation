@@ -17,9 +17,10 @@ from astropy.coordinates import (
 
 from screens.screen import Source, Screen1D, Telescope
 from screens.fields import phasor
+import astropy.constants as ac
 
 
-dp = 0.75*u.kpc
+dp = 1.00*u.kpc
 d2 = 0.50*u.kpc
 d1 = 0.25*u.kpc
 
@@ -31,17 +32,18 @@ d1 = 0.25*u.kpc
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
                 vel=CartesianRepresentation(300., 0., 0., unit=u.km/u.s))
-telescope = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU))
+telescope = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU),
+        vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
 
 s1 = Screen1D(CylindricalRepresentation(1., -40*u.deg, 0.).to_cartesian(),
               [-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031,
                0., 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409]*u.AU,
-              magnification=np.array(
+               v=0*u.km/u.s,
+               magnification=np.array(
                   [0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,
                    1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 s2 = Screen1D(CylindricalRepresentation(1., 70*u.deg, 0.).to_cartesian(),
-              [0.85]*u.AU, magnification=0.05)
-
+               p=[0.85]*u.AU, v=0*u.km/u.s, magnification=0.05)
 
 def axis_extent(x):
     x = x.ravel().value
@@ -102,30 +104,8 @@ if __name__ == '__main__':
     plot_screen(ax, s1, d1, color='red')
     plot_screen(ax, s2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
-    # Connect origins
-    # ax.plot(np.zeros(4), np.zeros(4),
-    #         [0., d1.value, d2.value, dp.value], color='black')
 
-    obs1 = telescope.observe(
-        s1.observe(pulsar, distance=dp-d1),
-        distance=d1)
-    path_shape = obs1.tau.shape  # Also trigger calculation of pos, vel.
-    tpos = obs1.pos
-    scat1 = obs1.source.pos
-    ppos = obs1.source.source.pos
-    x = np.vstack(
-        [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, ppos)])
-    y = np.vstack(
-        [np.broadcast_to(getattr(pos, 'y').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, ppos)])
-    z = np.vstack(
-        [np.broadcast_to(d, path_shape).ravel()
-         for d in (0., d1.value, dp.value)])
-    for _x, _y, _z in zip(x.T, y.T, z.T):
-        ax.plot(_x, _y, _z, color='black', linestyle=':')
-        ax.scatter(_x[1], _y[1], _z[1], marker='o',
-                   color='red')
+
     obs2 = telescope.observe(
         s1.observe(
             s2.observe(pulsar, distance=dp-d2),
@@ -151,10 +131,9 @@ if __name__ == '__main__':
                    color=['red', 'orange'])
 
     # Create dynamic spectrum using delay for each path.
-    tau0 = np.hstack([obs1.tau.ravel(), obs2.tau.ravel()])
-    taudot = np.hstack([obs1.taudot.ravel(), obs2.taudot.ravel()])
+    tau0 = np.hstack([obs2.tau.ravel()])
+    taudot = np.hstack([obs2.taudot.ravel()])
     brightness = np.hstack([
-        np.broadcast_to(obs1.brightness, obs1.tau.shape).ravel(),
         np.broadcast_to(obs2.brightness, obs2.tau.shape).ravel()])
     t = np.linspace(0, 120*u.min, 200)[:, np.newaxis]
     f = np.linspace(300*u.MHz, 310*u.MHz, 300)
@@ -163,16 +142,17 @@ if __name__ == '__main__':
     ph = phasor(f, tau)
     dw = ph * brightness[:, np.newaxis, np.newaxis]
     # Calculate and show dynamic spectrum.
-    ds = np.abs(dw.sum(0))**2
+    ds = dw.sum(0)
+    #ds = np.abs(dw.sum(0))**2
     ax_ds = plt.subplot(233)
-    ax_ds.imshow(ds.T, cmap='Greys',
+    ax_ds.imshow(np.abs(ds.T), cmap='Greys',
                  extent=axis_extent(t) + axis_extent(f),
                  origin='lower', interpolation='none', aspect='auto')
     ax_ds.set_xlabel(t.unit.to_string('latex'))
     ax_ds.set_ylabel(f.unit.to_string('latex'))
     # And the conjugate spectrum.
     ss = np.fft.fft2(ds)
-    ss /= ss[0, 0]
+    ss /= np.max(np.abs(ss))
     ss = np.fft.fftshift(ss)
     tau = np.fft.fftshift(np.fft.fftfreq(f.size, f[1]-f[0])).to(u.us)
     fd = np.fft.fftshift(np.fft.fftfreq(t.size, t[1]-t[0])).to(u.mHz)
@@ -185,4 +165,50 @@ if __name__ == '__main__':
     ax_ss.set_xlabel(fd.unit.to_string('latex'))
     ax_ss.set_ylabel(tau.unit.to_string('latex'))
 
+    plt.show()
+    plt.close()
+
+    # Compute the curvature one would observe is just single screen at each location
+    s_1 = 1 - (d1/dp).to(u.dimensionless_unscaled)
+    s_2 = 1 - (d2/dp).to(u.dimensionless_unscaled)
+    s_3 = 1 - ((d2-d1)/(dp-d1)).to(u.dimensionless_unscaled)
+    s_4 = 1 - (d1/d2).to(u.dimensionless_unscaled)
+    deff1 = dp * (1-s_1)/s_1
+    deff2 = dp * (1-s_2)/s_2
+    deff3 = (dp-d1) * (1-s_3)/s_3
+    deff4 = d2 * (1-s_4)/s_4
+    veff1 = pulsar.vel.get_xyz()[0] * (1 - s_1)/s_1
+    veff2 = pulsar.vel.get_xyz()[0] * (1 - s_2)/s_2
+    veff3 = pulsar.vel.get_xyz()[0] * (1 - s_3)/s_3
+    veff4 = pulsar.vel.get_xyz()[0] * (1 - s_3)/s_3
+
+    lambd = ac.c / (305 * u.MHz)
+    eta1 = ((lambd**2/(2*ac.c)) * deff1/(veff1**2)).to(u.s**3)
+    eta2 = ((lambd**2/(2*ac.c)) * deff2/(veff2**2)).to(u.s**3)
+    eta3 = ((lambd**2/(2*ac.c)) * deff3/(veff3**2)).to(u.s**3)
+    eta4 = ((lambd**2/(2*ac.c)) * deff4/(veff4**2)).to(u.s**3)
+    print("eta1 = {:.5f}".format(eta1))
+    print("eta2 = {:.5f}".format(eta2))
+    print("eta3 = {:.5f}".format(eta3))
+    print("eta4 = {:.5f}".format(eta4))
+
+    # Compute offset in second parabola
+    offset_x = -(veff1/(lambd)*(s1.p/d1)).to(u.mHz) -(veff2/(lambd)*(s2.p/d2)).to(u.mHz)
+    offset_y = ((deff1/(2*ac.c))*(s1.p/d1)**2).to(u.us) + ((deff2/(2*ac.c))*(s2.p/d2)**2).to(u.us) 
+    print(offset_x)
+    print(offset_y)
+
+
+    plt.figure(figsize=(8,6))
+    plt.imshow(np.log10(np.abs(ss.T)**2), cmap='Greys',
+                 extent=axis_extent(fd) + axis_extent(tau),
+                 origin='lower', interpolation='none', aspect='auto')
+    plt.plot(offset_x, offset_y, "r.")
+    #plt.plot(fd.value, (fd.value - offset_x.value)**2 * eta4.value + offset_y.value, color='blue')
+    plt.xlim(-5, 5)
+    plt.ylim(-10, 10)
+    plt.xlabel(fd.unit.to_string('latex'))
+    plt.ylabel(tau.unit.to_string('latex'))
+    plt.colorbar()
+    plt.tight_layout()
     plt.show()

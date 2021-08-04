@@ -19,36 +19,73 @@ from screens.screen import Source, Screen1D, Telescope
 from screens.fields import phasor
 import astropy.constants as ac
 
-
+# Distances
 dp = 0.75*u.kpc
+d2 = 0.50*u.kpc
 d1 = 0.25*u.kpc
 
-# This breaks the code, should maybe let Marten know
-# dp = dp.to_value(u.pc) * u.pc
-# d2 = d2.to_value(u.pc) * u.pc
-# d1 = d1.to_value(u.pc) * u.pc
-
+# Angles
+ap =  0* u.deg      # Pulsar Angle
+a1 = 90* u.deg      # Screen 1 Angle
+a2 = 45* u.deg      # Screen 2 Angle
 
 pulsar = Source(CartesianRepresentation([0., 0., 0.]*u.AU),
                 vel=CartesianRepresentation(300., 0., 0., unit=u.km/u.s))
 telescope = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU),
         vel=CylindricalRepresentation(0, 0*u.deg, 0.).to_cartesian()*u.km/u.s)
 
-s1 = Screen1D(CylindricalRepresentation(1., 0*u.deg, 0.).to_cartesian(),
+s1 = Screen1D(CylindricalRepresentation(1., a1, 0.).to_cartesian(),
               [-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031,
                0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409]*u.AU,
                v=0*u.km/u.s,
                magnification=np.array(
                   [0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,
                    1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
+s2 = Screen1D(CylindricalRepresentation(1., a2, 0.).to_cartesian(),
+               p=[1e-9]*u.m, v=0*u.km/u.s, magnification=0.05)
+
 
 # Compute the curvature one would observe is just single screen at each location
-s_1 = 1 - (d1/dp).to(u.dimensionless_unscaled)
-deff1 = dp * (1-s_1)/s_1
-veff1 = np.dot(pulsar.vel.get_xyz() * (1 - s_1)/s_1 + telescope.vel.get_xyz(), s1.normal.get_xyz())
+s_1p = 1 - (d1/dp).to(u.dimensionless_unscaled)
+s_2p = 1 - (d2/dp).to(u.dimensionless_unscaled)
+s_3 = 1 - ((d2-d1)/(dp-d1)).to(u.dimensionless_unscaled)
+s_12 = 1 - (d1/d2).to(u.dimensionless_unscaled)
+deff1 = dp * (1-s_1p)/s_1p
+deff2 = dp * (1-s_2p)/s_2p
+deff3 = (dp-d1) * (1-s_3)/s_3
+deff4 = dp * (1 - s_1p)/s_12
+veff1 = np.dot(pulsar.vel.get_xyz() * (1 - s_1p)/s_1p + telescope.vel.get_xyz() - s1.v/s_1p, s1.normal.get_xyz())
+veff2 = np.dot(pulsar.vel.get_xyz() * (1 - s_2p)/s_2p + telescope.vel.get_xyz() - s2.v/s_2p, s2.normal.get_xyz())
+veff4 = veff1 * np.sqrt(1 - np.dot(s1.normal, s2.normal)**2)**2
 lambd = ac.c / (305 * u.MHz)
 eta1 = ((lambd**2/(2*ac.c)) * deff1/(veff1**2)).to(u.s**3)
-print("eta1 = {:.5f}".format(eta1))
+eta2 = ((lambd**2/(2*ac.c)) * deff2/(veff2**2)).to(u.s**3)
+eta4 = ((lambd**2/(2*ac.c)) * deff1/(veff4**2)).to(u.s**3)
+
+psr_vel  = np.sqrt(np.dot(pulsar.vel.get_xyz(), pulsar.vel.get_xyz()))
+psr_vel2 = np.sin(ap - a2) * psr_vel
+psr_vel3 = np.sin(a2 - a1) * psr_vel2 * s1.normal.get_xyz()
+
+s2_v = np.sqrt(1 - np.dot(s2.normal.get_xyz(), s1.normal.get_xyz())**2) * s2.v * s1.normal.get_xyz()
+
+veff= np.dot(psr_vel3 * (1 - s_1p)/s_1p + telescope.vel.get_xyz() + s1.v/s_1p * s1.normal.get_xyz() - s2_v, s1.normal.get_xyz())
+deff=deff1
+eta = ((lambd**2/(2*ac.c)) * deff/(veff**2)).to(u.s**3)
+print("veff = {:.5f}".format(veff))
+print("eta = {:.5f}".format(eta))
+
+# Compute offset in second parabola
+offset_x = -(veff2/(lambd)*(s2.p/d2)).to(u.mHz)
+offset_y = ((deff2/(2*ac.c))*(s2.p/d2)**2).to(u.us)
+#print(offset_x)
+#print(offset_y)
+
+# Compute position of point
+theta = (s2.p[0]/d2).to(u.dimensionless_unscaled)
+fd_theta = (veff2 * theta / lambd).to(u.mHz)
+tau_theta = (deff2 * theta**2 / (2*ac.c)).to(u.us)
+print(fd_theta)
+print(tau_theta)
 
 
 def axis_extent(x):
@@ -108,24 +145,29 @@ if __name__ == '__main__':
     ax.set_zticks([0, 0.25, 0.5, 0.75])
     plot_screen(ax, telescope, 0*u.kpc, color='blue')
     plot_screen(ax, s1, d1, color='red')
+    plot_screen(ax, s2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
 
 
     obs2 = telescope.observe(
-            s1.observe(pulsar, distance=dp-d1), distance=d1)
+        s1.observe(
+            s2.observe(pulsar, distance=dp-d2),
+            distance=d2-d1),
+        distance=d1)
     path_shape = obs2.tau.shape  # Also trigger calculation of pos, vel.
     tpos = obs2.pos
     scat1 = obs2.source.pos
-    ppos = obs2.source.source.pos
+    scat2 = obs2.source.source.pos
+    ppos = obs2.source.source.source.pos
     x = np.vstack(
         [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, ppos)])
+         for pos in (tpos, scat1, scat2, ppos)])
     y = np.vstack(
         [np.broadcast_to(getattr(pos, 'y').to_value(u.AU), path_shape).ravel()
-         for pos in (tpos, scat1, ppos)])
+         for pos in (tpos, scat1, scat2, ppos)])
     z = np.vstack(
         [np.broadcast_to(d, path_shape).ravel()
-         for d in (0., d1.value, dp.value)])
+         for d in (0., d1.value, d2.value, dp.value)])
     for _x, _y, _z in zip(x.T, y.T, z.T):
         ax.plot(_x, _y, _z, color='black', linestyle=':')
         ax.scatter(_x[1:3], _y[1:3], _z[1:3], marker='o',
@@ -161,7 +203,7 @@ if __name__ == '__main__':
     ax_ss.imshow(np.log10(np.abs(ss.T)**2), vmin=-7, vmax=0, cmap='Greys',
                  extent=axis_extent(fd) + axis_extent(tau),
                  origin='lower', interpolation='none', aspect='auto')
-    ax_ss.plot(fd, eta1*fd**2, color='red')
+    ax_ss.plot(fd, eta*fd**2, color='red')
     ax_ss.set_xlim(-5, 5)
     ax_ss.set_ylim(-10, 10)
     ax_ss.set_xlabel(fd.unit.to_string('latex'))
@@ -169,7 +211,6 @@ if __name__ == '__main__':
 
     plt.show()
     #plt.close()
-
 
     fig = plt.figure(figsize=(20, 6))
     fig.add_subplot(121)
@@ -184,7 +225,8 @@ if __name__ == '__main__':
     plt.imshow(np.log10(np.abs(ss.T)**2), vmin=-7, vmax=0, cmap='Greys',
                  extent=axis_extent(fd) + axis_extent(tau),
                  origin='lower', interpolation='none', aspect='auto')
-    plot(fd, eta1*fd**2, color='red')
+    plt.plot(fd, eta*fd**2, color='red')
+    #plt.plot(fd, eta1*fd**2, color='blue')
     plt.xlim(-5, 5)
     plt.ylim(0, 10)
     plt.xlabel(fd.unit.to_string('latex'))

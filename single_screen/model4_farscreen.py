@@ -12,6 +12,7 @@ from astropy.coordinates import (
 from screens.screen import Source, Screen1D, Telescope
 from screens.fields import phasor
 from scipy.optimize import curve_fit
+import astropy.constants as ac
 
 
 dp = 0.372*u.kpc
@@ -36,7 +37,7 @@ jodrell = Telescope(CylindricalRepresentation(5552,  (-42.33 - 11.4)*u.deg, 0.).
 vla     = Telescope(CylindricalRepresentation(3937,  (57.364 - 11.4)*u.deg, 0.).to_cartesian() * u.km,
         vel=CylindricalRepresentation(22.8664832,  (-124.88  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
 
-s2 = Screen1D(CylindricalRepresentation(1., (63.6 - 11.4)*u.deg, 0.).to_cartesian(),
+screen2 = Screen1D(CylindricalRepresentation(1., (63.6 - 11.4)*u.deg, 0.).to_cartesian(),
               0.5*np.array([-0.711, -0.62, -0.53, -0.304, -0.111, -0.052, -0.031, 0.0001, 0.0201, 0.0514, 0.102, 0.199, 0.3001, 0.409])*u.AU,
               magnification=np.array([0.01, 0.01, 0.02, 0.08, 0.25j, 0.34, 0.4+.1j,1, 0.2-.5j, 0.5j, 0.3, 0.2, 0.09, 0.02]))
 
@@ -97,16 +98,16 @@ if __name__ == '__main__':
     ax.set_yticks([-2, -1, 0, 1., 2])
     ax.set_zticks([0, 0.25, 0.5, 0.75])
     plot_screen(ax, arecibo, 0*u.kpc, color='blue')
-    plot_screen(ax, s2, d2, color='orange')
+    plot_screen(ax, screen2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
 
 
     # ARECIBO
-    obs2 = arecibo.observe(s2.observe(pulsar, distance=dp-d2), distance=d2)
-    path_shape = obs2.tau.shape  # Also trigger calculation of pos, vel.
-    tpos = obs2.pos
-    scat1 = obs2.source.pos
-    ppos = obs2.source.source.pos
+    obscreen2 = arecibo.observe(screen2.observe(pulsar, distance=dp-d2), distance=d2)
+    path_shape = obscreen2.tau.shape  # Also trigger calculation of pos, vel.
+    tpos = obscreen2.pos
+    scat1 = obscreen2.source.pos
+    ppos = obscreen2.source.source.pos
     x = np.vstack(
         [np.broadcast_to(getattr(pos, 'x').to_value(u.AU), path_shape).ravel()
          for pos in (tpos, scat1, ppos)])
@@ -122,9 +123,9 @@ if __name__ == '__main__':
                    color=['red', 'orange'])
 
     # Create dynamic spectrum using delay for each path.
-    tau0 = np.hstack([obs2.tau.ravel()])
-    taudot = np.hstack([obs2.taudot.ravel()])
-    brightness = np.hstack([np.broadcast_to(obs2.brightness, obs2.tau.shape).ravel()])
+    tau0 = np.hstack([obscreen2.tau.ravel()])
+    taudot = np.hstack([obscreen2.taudot.ravel()])
+    brightness = np.hstack([np.broadcast_to(obscreen2.brightness, obscreen2.tau.shape).ravel()])
     t = np.linspace(0, 120*u.min, 300)[:, np.newaxis]
     f = np.linspace(300*u.MHz, 310*u.MHz, 600)
     tau = (tau0[:, np.newaxis, np.newaxis]
@@ -172,9 +173,9 @@ if __name__ == '__main__':
     ax.set_yticks([-2, -1, 0, 1., 2])
     ax.set_zticks([0, 0.25, 0.5, 0.75])
     plot_screen(ax, arecibo, 0*u.kpc, color='blue')
-    plot_screen(ax, s2, d2, color='orange')
+    plot_screen(ax, screen2, d2, color='orange')
     plot_screen(ax, pulsar, dp, color='green')
-    obs3 = jodrell.observe(s2.observe(pulsar, distance=dp-d2), distance=d2)
+    obs3 = jodrell.observe(screen2.observe(pulsar, distance=dp-d2), distance=d2)
     path_shape = obs3.tau.shape  # Also trigger calculation of pos, vel.
     tpos = obs3.pos
     scat1 = obs3.source.pos
@@ -246,15 +247,34 @@ if __name__ == '__main__':
     jb_ss = np.fft.fftshift(np.fft.fft2(jb_ds))
     cross = ar_ss * np.conj(jb_ss)
 
+    # Calculate the curvature (quickly)
+    cross_copy = cross.copy()
+    tau_min = np.searchsorted(tau.value, 0.5)
+    cross_copy[:tau_min,] = 0
+    y_max, x_max = np.unravel_index((np.abs(cross_copy)**2).argmax(), cross_copy.shape)
+    curvature = (tau[y_max] / (fd[x_max])**2).to(u.s**3)
+    print("Curvature = {0:.5f}".format(curvature))
+
+    # Compute the curvature one would observe is just single screen at each location
+    s_2 = 1 - (d2/dp).to(u.dimensionless_unscaled)
+    deff2 = dp * (1-s_2)/s_2
+    veff2 = np.dot(pulsar.vel.get_xyz() * (1 - s_2)/s_2 + arecibo.vel.get_xyz(), screen2.normal.get_xyz())
+    lambd = ac.c / (305 * u.MHz)
+    eta2 = ((lambd**2/(2*ac.c)) * deff2/(veff2**2)).to(u.s**3)
+    print("eta2 = {:.5f}".format(eta2))
+
 
     fig = plt.figure(figsize=(12, 6))
     fig.add_subplot(221)
     plt.imshow(np.log10(np.abs(cross)), aspect='auto', interpolation='none', origin='lower',
                extent=[fd[0].value, fd[-1].value, tau[0].value, tau[-1].value])
+    plt.plot(fd.value, fd.value**2 * curvature, color='red')
+    plt.plot(fd.value, fd.value**2 * eta2, color='blue')
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
     plt.ylim(0, 10)
+    plt.title("AR-JB")
     plt.colorbar()
 
     fig.add_subplot(222)
@@ -265,8 +285,8 @@ if __name__ == '__main__':
     plt.ylabel("Delay [$\mu s$]")
     plt.xlim(-10, 10)
     plt.ylim(0, 10)
+    plt.title("$\\eta = {0:.5f}$".format(curvature))
     plt.colorbar()
-
 
 
     # Average along Delay Axes
@@ -275,17 +295,30 @@ if __name__ == '__main__':
     def f(x, a):
         return a*x
 
-    s = curve_fit(f, fd[145:155], delay_average[145:155])
+    s = curve_fit(f, fd[115:215], delay_average[115:215])
     slope = s[0][0]
     delay = slope * 1000 / (2 * np.pi)
-    print(fd[:10])
-    print(slope)
-    print(delay)
+    print("Delay = {:.5f}".format(delay))
+
+    FD, TAU = np.meshgrid(fd, tau)
+    delay2 = (np.angle(cross[y_max, x_max]) / (FD[y_max, x_max].to(u.Hz)) / (2 * np.pi)).to(u.s)
+    print(delay2.value)
+    #print(delay)
 
 
-    fig.add_subplot(212)
+    fig.add_subplot(223)
+    plt.plot(delay_average, label="Delay Averaged Cross")
+    plt.xlabel("Doppler Frequency Bins")
+    plt.ylabel("Radians")
+    plt.legend()
+    plt.ylim(-0.25, 0.25)
+    plt.tight_layout()
+
+
+    fig.add_subplot(224)
     plt.plot(fd, delay_average, label="Delay Averaged Cross")
     plt.plot(fd, fd * slope, label = "Delay = {0:.3f} s".format(delay))
+    plt.plot(fd, fd * 3*slope, color='blue')
     plt.xlabel("Doppler Frequency [mHz]")
     plt.ylabel("Radians")
     plt.legend()

@@ -280,7 +280,6 @@ if __name__ == '__main__':
     plt.colorbar()
 
 
-
     # Average along Delay Axes
     delay_average = np.angle(cross[cross.shape[0]//2:].mean(0))
 

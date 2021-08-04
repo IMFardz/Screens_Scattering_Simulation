@@ -34,9 +34,6 @@ arecibo = Telescope(CartesianRepresentation([0., 0., 0.]*u.AU),
 jodrell = Telescope(CylindricalRepresentation(5552, (-42.33 - 11.4)*u.deg, 0.).to_cartesian() * u.km,
         vel=CylindricalRepresentation(22.8664832, (-124.88  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
 
-vla     = Telescope(CylindricalRepresentation(3937, (57.364 - 11.4)*u.deg, 0.).to_cartesian() * u.km,
-        vel=CylindricalRepresentation(22.8664832, (-124.88  - 11.4)*u.deg, 0.).to_cartesian()*u.km/u.s)
-
 s1 = Screen1D(CylindricalRepresentation(1., 45*u.deg, 0.).to_cartesian(),
               np.array([0.0001])*u.AU,
               magnification=np.array([1]))
